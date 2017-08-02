@@ -1,8 +1,8 @@
 Global $sVersion = "1.0"
 Global $sKeyToSpam = 1 ;//Self-explanatory, default key
 Global $nInterval = 50 ;//Default interval between mouseclicks
-Global $gX, $gY, $bool
 Global $bPaused = 0
+
 HotKeySet("^+{z}", "PauseHK")
 HotKeySet("+{esc}", "ExitS")
 
