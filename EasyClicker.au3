@@ -1,4 +1,4 @@
-Global $sVersion = "1.0"
+Global $sVersion = "1.1"
 Global $sKeyToSpam = 1 ;//Self-explanatory, default key
 Global $nInterval = 50 ;//Default interval between mouseclicks
 Global $bPaused = 0
@@ -30,6 +30,7 @@ While 1
 	$msg = GUIGetMsg()
 	Switch $msg
 		Case $bKeySpammer
+			$nInterval = GUICtrlRead($iInterval)
 			GUISetState(@SW_HIDE)
 			$sKeyToSpam = InputBox("", "Enter key(s) you want to spam.", "1")
 			If Not $sKeyToSpam Then
@@ -39,6 +40,7 @@ While 1
 				_SpamKey($sKeyToSpam, $nInterval)
 			EndIf
 		Case $bClickSpammer
+			$nInterval = GUICtrlRead($iInterval)
 			HotKeySet(";", "_DecreaseClickDelay")
 			HotKeySet("'", "_IncreaseClickDelay")
 			$sClickToSpam = GUICtrlRead($cbClickToSpam)
