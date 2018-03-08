@@ -1,10 +1,10 @@
-;//TODO: add settings to customize start/stop key & remember parameters
+#include <GUIConstantsEx.au3>
 
-Global $sVersion = "1.3"
+Global $sVersion = "1.4"
 Global $sKeyToSpam = 1 ;//Self-explanatory, default key
-Global $nInterval = 50 ;//Default interval between mouseclicks
-Global $sClicksPerSec = Round(1000/$nInterval, 1)
-Global $bPaused = 0
+Global $nInterval = 50 ;//Default interval between mouseclicks & button presses
+Global $bPaused = 0, $bHold = False
+Global $sPauseHotkey = "+^{z}", $sStartHotkey = "+^{x}"
 
 HotKeySet("+{esc}", "ExitS")
 
@@ -21,64 +21,86 @@ $hGUI = GUICreate("Easy Input Tool", 241, 158)
 $bClickSpammer = GUICtrlCreateButton("Click Spammer", 15, 20, 140, 40)
 $cbClickToSpam = GUICtrlCreateCombo("Left", 163, 21, 60, 22, 0x0003)
 GUICtrlSetData(-1, "Right|Middle")
-GUICtrlSetTip(-1, "Click button")
+GUICtrlSetTip(-1, "Mouse button to click")
 $bKeySpammer = GUICtrlCreateButton("Key Spammer", 15, 70, 210, 40)
-GUICtrlCreateLabel("Interval (ms)", 15, 125)
+$cbHold = GUICtrlCreateCheckbox("Hold", 15, 122)
+GUICtrlSetTip(-1, "Hold down a key/mouse button instead of tapping it.")
+GUICtrlCreateLabel("Interval (ms)", 105, 125)
 $iInterval = GUICtrlCreateInput("50", 173, 123, 50, 22)
-GUICtrlSetTip($iInterval, "Delay between clicks. Currently clicking " & $sClicksPerSec & " click(s) per second.")
-$slInterval = GUICtrlCreateSlider(82, 123, 85, 22, 0x0010)
-GUICtrlSetLimit(-1, 1000, 10)
-GUICtrlSetData(-1, 50)
 GUISetState()
 
 While 1
 	$msg = GUIGetMsg()
 	Switch $msg
-		Case $slInterval
-			GUICtrlSetData($iInterval, GUICtrlRead($slInterval))
-			$nInterval = GUICtrlRead($iInterval)
-			$sClicksPerSec = Round(1000/$nInterval, 1)
-			GUICtrlSetTip($iInterval, "Time between clicks. Currently clicking " & $sClicksPerSec & " clicks per second.")
 		Case $bKeySpammer
 			$nInterval = GUICtrlRead($iInterval)
 			If Not StringRegExp($nInterval, "\A(\d)+\Z") Then
 				MsgBox(48, "Error", "Interval must be a number.")
 				ContinueLoop
 			EndIf
-			GUISetState(@SW_HIDE)
-			HotKeySet("^+{z}", "PauseHK")
-			$sKeyToSpam = InputBox("Easy Input Tool", "Enter key(s) you want to spam.", "1", "", 250, 150)
-			If Not $sKeyToSpam Then
-				GUISetState(@SW_SHOW)
+			HotKeySet($sPauseHotkey, "PauseHK")
+			If GUICtrlRead($cbHold) = $GUI_CHECKED Then
+				$sSpecialKeys = "Special keys: CTRL,SHIFT,ALT"
+				$sDefaultKey = "CTRL"
 			Else
+				$sSpecialKeys = "Special keys: ^(Ctrl) +(Shift) !(Alt). Put them in brackets for literal characters. Example: +a = Shift+a, " & "{" & "+}a = +a"
+				$sDefaultKey = "1"
+			EndIf
+			$sKeyToSpam = InputBox("Easy Input Tool", "Enter key(s) you want to spam." & @CRLF & @CRLF & $sSpecialKeys, $sDefaultKey, "", 250, 180)
+			If GUICtrlRead($cbHold) = $GUI_CHECKED Then
+				If StringLen($sKeyToSpam) > 1 And Not StringRegExp($sKeyToSpam, "\A(CTRL|SHIFT|ALT)\Z") Then
+					MsgBox(64, "Easy Input Tool", "Only 1 key can be held down at a time.")
+					ContinueLoop
+				Else
+					$bHold = True
+				EndIf
+			Else
+				$bHold = False
+			EndIf
+			If $sKeyToSpam Then
 				HotKeySet(";", "_DecreaseClickDelay")
 				HotKeySet("'", "_IncreaseClickDelay")
-				PauseS(1)
-				_SpamKey($sKeyToSpam, $nInterval)
+				HotKeySet($sStartHotkey, "_SpamKeyHK")
+				TrayTip("", "Press Ctrl+Shift+X to start." & @CRLF & "Press Ctrl+Shift+Z to Pause/Unpause.", 2)
+				If $bHold = False Then GUISetState(@SW_HIDE)
 			EndIf
-		Case $bClickSpammer
+			Case $bClickSpammer
 			$nInterval = GUICtrlRead($iInterval)
 			If Not StringRegExp($nInterval, "\A(\d)+\Z") Then
 				MsgBox(48, "Error", "Interval must be a number.")
 				ContinueLoop
 			EndIf
-			HotKeySet("^+{z}", "PauseHK")
+			HotKeySet($sPauseHotkey, "PauseHK")
 			HotKeySet(";", "_DecreaseClickDelay")
 			HotKeySet("'", "_IncreaseClickDelay")
 			$sClickToSpam = GUICtrlRead($cbClickToSpam)
-			GUISetState(@SW_HIDE) ;//$GUI_HIDE
-			PauseS(1)
-			_SpamClick($sClickToSpam, $nInterval)
+			If GUICtrlRead($cbHold) = $GUI_CHECKED Then
+				$bHold = True
+			Else
+				$bHold = False
+				GUISetState(@SW_HIDE) ;//$GUI_HIDE
+			EndIf
+			HotKeySet($sStartHotkey, "_SpamClickHK")
+			TrayTip("", "Press Ctrl+Shift+X to start." & @CRLF & "Press Ctrl+Shift+Z to Pause/Unpause", 2) 
 		Case -3 ;//$GUI_EVENT_CLOSE
 			Exit
 	EndSwitch
 WEnd
 
+Func _SpamKeyHK()
+	If $bHold = True Then Send("{" & $sKeyToSpam & "up}")
+	_SpamKey($sKeyToSpam, $nInterval, $bHold)
+EndFunc	
 
-Func _SpamKey($sfKey, ByRef $nInterval)
+Func _SpamKey($sfKey, ByRef $nInterval, $bHold = False)
+	Sleep(250)
+	If $bHold = True Then
+		Send("{" & $sfKey & "down}")
+		Return
+	EndIf
 	While 1
 		Sleep($nInterval)
-		If StringRegExp($sfKey, "(;|')") Then;//Case string to spam contains interval control keys
+		If StringRegExp($sfKey, "(;|')") Then;//Case string to spam contains interval control keys, separated for better performance.
 			HotKeySet(";")
 			HotKeySet("'")
 			Send($sfKey)
@@ -90,7 +112,16 @@ Func _SpamKey($sfKey, ByRef $nInterval)
 	WEnd
 EndFunc   ;==>_SpamKey
 
-Func _SpamClick($sClickToSpam, ByRef $nInterval)
+Func _SpamClickHK()
+	MouseUp($sClickToSpam)
+	_SpamClick($sClickToSpam, $nInterval, $bHold)
+EndFunc
+
+Func _SpamClick($sClickToSpam, ByRef $nInterval, $bHold = False)
+	If $bHold = True Then
+		MouseDown($sClickToSpam)
+		Return
+	EndIf	
 	While 1
 		Sleep($nInterval)
 		MouseClick($sClickToSpam)
@@ -109,7 +140,7 @@ EndFunc   ;==>_DecreaseClickDelay
 
 Func PauseHK()
 	PauseS()
-EndFunc
+EndFunc   ;==>PauseHK
 
 Func PauseS($bIsFirstRun = 0)
 	$bPaused = Not $bPaused
@@ -124,13 +155,13 @@ Func PauseS($bIsFirstRun = 0)
 		TrayTip("", $sPause & " Press Ctrl+Shift+Z to continue.", 2)
 	EndIf
 	While $bPaused
-		Sleep(500)
+		Sleep(300)
 	WEnd
 EndFunc   ;==>PauseS
 
 Func AboutS()
 	MsgBox(64, "Easy Input Tool v" & $sVersion, "Press Ctrl+Shift+Z to start/stop." & @CRLF & "Press ; to speed up. Press ' to slow down." & @CRLF & @CRLF & "Try running as Administrator if clicks do not register." & @CRLF & @CRLF & "evorlet@gmail.com")
-EndFunc	
+EndFunc   ;==>AboutS
 
 Func ExitS()
 	Exit
